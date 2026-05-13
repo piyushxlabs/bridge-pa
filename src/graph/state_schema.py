@@ -1,5 +1,6 @@
 import os
-from typing import TypedDict, List, Optional, Literal, Union
+from typing import List, Optional, Literal, Union
+from typing_extensions import TypedDict
 
 # Module-level hardcoded integer constants (Immutable per specification)
 BASELINE_COST_THRESHOLD_USD = 10000
