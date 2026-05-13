@@ -13,6 +13,7 @@ from src.tools.validate_field_parity import execute as validate_field_parity_exe
 from src.tools.submit_authorization_request import execute as submit_authorization_request_execute
 from src.tools.update_fields_post_specialist_action import execute as update_fields_post_specialist_action_execute
 from src.tools.write_phi_audit_log import execute as write_phi_audit_log_execute
+from src.api.streaming.sse_emitter import sse_emitter
 
 SYSTEM_PROMPT = """You are the Data Entry Agent for a HIPAA-regulated Prior Authorization (Concurrent Review) processing system operating within a commercial healthcare payer organization.
 
@@ -93,6 +94,9 @@ async def data_entry_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     ReAct Node implementation for Data Entry Agent.
     """
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 7, "Data Entry", "data_entry_node")
+
     # Precondition checks (stubbed for tests)
     session_id = state.get("session", {}).get("session_id", "default_session")
     credentials = get_injected_credentials(session_id)
@@ -109,4 +113,5 @@ async def data_entry_node(state: Dict[str, Any]) -> Dict[str, Any]:
     messages.append(SystemMessage(content=SYSTEM_PROMPT))
     
     # We return a simple state update for tests to verify the node was called
+    await sse_emitter.emit_step_completed(case_id, 7, "Data Entry", "data_entry_node")
     return {"data_entry_node_executed": True, "messages": messages}

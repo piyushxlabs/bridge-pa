@@ -7,6 +7,7 @@ from src.tools.get_case_elapsed_times import execute as get_case_elapsed_times_e
 from src.tools.trigger_sla_alert import execute as trigger_sla_alert_execute
 from src.tools.reroute_to_high_priority_queue import execute as reroute_to_high_priority_queue_execute
 from src.tools.deregister_case_from_monitoring import execute as deregister_case_from_monitoring_execute
+from src.api.streaming.sse_emitter import sse_emitter
 
 SYSTEM_PROMPT = """You are the SLA Monitor Agent for a HIPAA-regulated Prior Authorization (Concurrent Review) processing system operating within a commercial healthcare payer organization.
 
@@ -70,6 +71,9 @@ async def sla_monitor_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     ReAct Node implementation for SLA Monitor Agent.
     """
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 8, "SLA Monitor", "sla_monitor_node")
+
     # Precondition checks (stubbed for tests)
     # Model initialization
     # llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
@@ -80,4 +84,5 @@ async def sla_monitor_node(state: Dict[str, Any]) -> Dict[str, Any]:
     messages.append(SystemMessage(content=SYSTEM_PROMPT))
     
     # We return a simple state update for tests to verify the node was called
+    await sse_emitter.emit_step_completed(case_id, 8, "SLA Monitor", "sla_monitor_node")
     return {"sla_monitor_node_executed": True, "messages": messages}

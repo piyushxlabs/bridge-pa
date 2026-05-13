@@ -2,6 +2,7 @@ from typing import Dict, Any
 from src.middleware.phi_audit_decorator import phi_audit_required
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from src.api.streaming.sse_emitter import sse_emitter
 
 from src.tools.retrieve_fax_document import execute as retrieve_fax_document_execute
 from src.tools.parse_document_ocr_vision import execute as parse_document_ocr_vision_execute
@@ -65,14 +66,18 @@ async def document_processing_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     ReAct Node implementation for Document Processing Agent.
     """
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 4, "Document Processing", "document_processing")
+
     # Precondition checks (stubbed for tests)
     # Model initialization
     # llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
     # llm_with_tools = llm.bind_tools(TOOLS)
-    
+
     # Mock execution for Step 10 Unit Tests
     messages = state.get("messages", [])
     messages.append(SystemMessage(content=SYSTEM_PROMPT))
-    
+
+    await sse_emitter.emit_step_completed(case_id, 4, "Document Processing", "document_processing")
     # We return a simple state update for tests to verify the node was called
     return {"document_processing_node_executed": True, "messages": messages}

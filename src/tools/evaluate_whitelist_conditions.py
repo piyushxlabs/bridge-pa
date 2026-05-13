@@ -4,6 +4,7 @@ from pydantic import BaseModel, ValidationError
 from typing import Any, Dict
 from src.utils.retry import with_retry
 from src.utils.logger import log_event
+from src.api.streaming.sse_emitter import sse_emitter
 
 # SCHEMA Definition (Generic placeholder, adapted from AGENT_LOGIC_SPEC.md)
 SCHEMA = {
@@ -21,6 +22,8 @@ BASELINE_LOS_THRESHOLD_DAYS = 5
 
 @with_retry()
 async def execute(params: dict) -> dict:
+    _case_id: str = params.get("case_id", "")
+    await sse_emitter.emit_activity_log(_case_id, "tool", "evaluate_whitelist_conditions invoked", "evaluate_whitelist_conditions")
     try:
         # Pydantic Validation
         # In a real scenario, use actual model fields

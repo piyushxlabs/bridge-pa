@@ -8,6 +8,7 @@ from src.tools.apply_interqual_matching import execute as apply_interqual_matchi
 from src.tools.evaluate_whitelist_conditions import execute as evaluate_whitelist_conditions_execute
 from src.tools.write_phi_audit_log import execute as write_phi_audit_log_execute
 from src.tools.write_evaluation_to_state import execute as write_evaluation_to_state_execute
+from src.api.streaming.sse_emitter import sse_emitter
 
 SYSTEM_PROMPT = """You are the Criteria Evaluation Agent for a HIPAA-regulated Prior Authorization (Concurrent Review) processing system operating within a commercial healthcare payer organization.
 
@@ -78,6 +79,9 @@ async def criteria_evaluation_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     ReAct Node implementation for Criteria Evaluation Agent.
     """
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 5, "Criteria Evaluation", "criteria_evaluation_node")
+
     # Precondition checks (stubbed for tests)
     # Model initialization
     # llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
@@ -88,4 +92,5 @@ async def criteria_evaluation_node(state: Dict[str, Any]) -> Dict[str, Any]:
     messages.append(SystemMessage(content=SYSTEM_PROMPT))
     
     # We return a simple state update for tests to verify the node was called
+    await sse_emitter.emit_step_completed(case_id, 5, "Criteria Evaluation", "criteria_evaluation_node")
     return {"criteria_evaluation_node_executed": True, "messages": messages}

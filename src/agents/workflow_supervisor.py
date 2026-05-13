@@ -94,18 +94,25 @@ TOOLS = [
     close_case_execute,
 ]
 
+from src.api.streaming.sse_emitter import sse_emitter
+
 async def workflow_supervisor_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     ReAct Node implementation for Workflow Supervisor Agent.
     """
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 1, "Workflow Supervisor", "workflow_supervisor")
+
     # Precondition checks (stubbed for tests)
     # Model initialization
     # llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
     # llm_with_tools = llm.bind_tools(TOOLS)
-    
+
     # Mock execution for Step 10 Unit Tests
     messages = state.get("messages", [])
     messages.append(SystemMessage(content=SYSTEM_PROMPT))
-    
+
+    await sse_emitter.emit_step_completed(case_id, 1, "Workflow Supervisor", "workflow_supervisor")
     # We return a simple state update for tests to verify the node was called
     return {"workflow_supervisor_node_executed": True, "messages": messages}
+

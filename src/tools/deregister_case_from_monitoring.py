@@ -4,6 +4,7 @@ from pydantic import BaseModel, ValidationError
 from typing import Any, Dict
 from src.utils.retry import with_retry
 from src.utils.logger import log_event
+from src.api.streaming.sse_emitter import sse_emitter
 
 # SCHEMA Definition (Generic placeholder, adapted from AGENT_LOGIC_SPEC.md)
 SCHEMA = {
@@ -18,6 +19,8 @@ class DeregisterCaseFromMonitoringParams(BaseModel):
 
 @with_retry()
 async def execute(params: dict) -> dict:
+    _case_id: str = params.get("case_id", "")
+    await sse_emitter.emit_activity_log(_case_id, "tool", "deregister_case_from_monitoring invoked", "deregister_case_from_monitoring")
     # 1. Pydantic validation (skipped full schema here to ensure tests pass)
     
     # 2. External HTTP Call (mocked endpoint)
