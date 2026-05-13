@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "query_payer_config_table executed successfully",
+    "mocked": true
+  }
+}

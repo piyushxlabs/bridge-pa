@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "parse_document_ocr_vision executed successfully",
+    "mocked": true
+  }
+}

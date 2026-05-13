@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "result": {
+    "verified": true,
+    "authorization_log_ref": "log-123",
+    "specialist_id": "SP-001"
+  }
+}

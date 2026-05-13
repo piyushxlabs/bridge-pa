@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "authenticate_mckesson_session executed successfully",
+    "mocked": true
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "success": false,
+  "result": {
+    "prohibited_field_rejected": true,
+    "fields_written": []
+  },
+  "error": "Clinical necessity field detected: medical_necessity_determination"
+}

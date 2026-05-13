@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "write_phi_audit_log executed successfully",
+    "mocked": true
+  }
+}

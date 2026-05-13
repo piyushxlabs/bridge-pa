@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "result": {
+    "action_type": "modified",
+    "rationale": "Modified LOS based on criteria",
+    "timestamp": "2026-05-13T12:00:00Z"
+  }
+}

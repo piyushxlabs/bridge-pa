@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "authenticate_portal_session executed successfully",
+    "mocked": true
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "trigger_emergency_stop executed successfully",
+    "mocked": true
+  }
+}

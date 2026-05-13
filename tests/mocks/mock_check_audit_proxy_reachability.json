@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "check_audit_proxy_reachability executed successfully",
+    "mocked": true
+  }
+}

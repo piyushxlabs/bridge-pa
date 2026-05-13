@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "result": {
+    "status": "trigger_sla_alert executed successfully",
+    "mocked": true
+  }
+}
