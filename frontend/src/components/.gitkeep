@@ -1,0 +1,9 @@
+// frontend/src/components/WorkflowTimeline.tsx — STUB (STEP 15)
+// frontend/src/components/StepCard.tsx — STUB (STEP 15)
+// frontend/src/components/ActivityLog.tsx — STUB (STEP 15)
+// frontend/src/components/ModeBReviewPanel.tsx — STUB (STEP 15)
+// frontend/src/components/EmergencyStopButton.tsx — STUB (STEP 15)
+// frontend/src/components/SLAHeader.tsx — STUB (STEP 15)
+// frontend/src/components/SystemBanner.tsx — STUB (STEP 15)
+// frontend/src/components/ConditionTable.tsx — STUB (STEP 15)
+export {}

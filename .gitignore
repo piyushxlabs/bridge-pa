@@ -1,0 +1,16 @@
+# IDE and AI Tooling (Secret Sauce)
+.agents/
+do_after_completion.md
+
+# Project Tracking Files (Internal only)
+progress_log.md
+project_state.md
+TECHNICAL_NOTES.md
+
+# Environment Secrets (DANGEROUS: Never upload this!)
+.env
+
+# Python specific
+__pycache__/
+*.py[cod]
+.venv/
