@@ -3,7 +3,6 @@
 # Python 3.12 required.
 # NOTE: Migrated to new google-genai SDK and LangChain V4 for Gemini 3.x stability.
 
-google-genai>=2.2.0
 langchain-google-genai>=4.2.2
 langchain-core>=0.3.53
 langgraph==0.3.5
