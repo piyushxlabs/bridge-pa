@@ -1,7 +1,8 @@
 # Bridge-PA — Strictly Locked Production Dependencies
 # Python 3.12/3.13 Compatible Architecture
 
-langchain-google-genai==3.1.0
+langchain-google-genai==3.0.2
+google-generativeai==0.8.4
 langchain-core==0.3.53
 langgraph==0.3.5
 langgraph-checkpoint-postgres==3.0.5
