@@ -1,8 +1,10 @@
 from typing import Dict, Any
 from src.middleware.phi_audit_decorator import phi_audit_required
 from src.middleware.vault_injection_adapter import get_injected_credentials
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import StructuredTool
 
 from src.tools.receive_vault_credentials import execute as receive_vault_credentials_execute
 from src.tools.authenticate_portal_session import execute as authenticate_portal_session_execute
@@ -75,18 +77,29 @@ Stop execution when:
 - Mode B pre-population completes and active_mode remains "mode_b" — halt here; await Workflow Supervisor signal.
 - write_phi_audit_log fails (halt immediately).
 - validate_field_parity returns parity failure (halt; permanent failure).
-- Explicit stop command received from Workflow Supervisor."""
+- Explicit stop command received from Workflow Supervisor.
+
+CRITICAL EXECUTION RULES:
+1. Once you have successfully executed the required tool(s) for your current phase, you MUST immediately output your final answer and STOP. Do NOT retry or call the same tool again.
+2. If a tool returns an error or failure, gracefully output the error as your final answer and STOP. Do NOT endlessly retry failed tools."""
+
+def wrap_tool(func, name):
+    return StructuredTool.from_function(
+        coroutine=func,
+        name=name,
+        description=f"{name} tool"
+    )
 
 TOOLS = [
-    receive_vault_credentials_execute,
-    authenticate_portal_session_execute,
-    authenticate_mckesson_session_execute,
-    prepopulate_portal_fields_execute,
-    prepopulate_mckesson_fields_execute,
-    validate_field_parity_execute,
-    submit_authorization_request_execute,
-    update_fields_post_specialist_action_execute,
-    write_phi_audit_log_execute,
+    wrap_tool(receive_vault_credentials_execute, "receive_vault_credentials"),
+    wrap_tool(authenticate_portal_session_execute, "authenticate_portal_session"),
+    wrap_tool(authenticate_mckesson_session_execute, "authenticate_mckesson_session"),
+    wrap_tool(prepopulate_portal_fields_execute, "prepopulate_portal_fields"),
+    wrap_tool(prepopulate_mckesson_fields_execute, "prepopulate_mckesson_fields"),
+    wrap_tool(validate_field_parity_execute, "validate_field_parity"),
+    wrap_tool(submit_authorization_request_execute, "submit_authorization_request"),
+    wrap_tool(update_fields_post_specialist_action_execute, "update_fields_post_specialist_action"),
+    wrap_tool(write_phi_audit_log_execute, "write_phi_audit_log"),
 ]
 
 @phi_audit_required(phi_fields=["all_extracted_fields"])
@@ -95,7 +108,7 @@ async def data_entry_node(state: Dict[str, Any]) -> Dict[str, Any]:
     ReAct Node implementation for Data Entry Agent.
     """
     case_id: str = state.get("user_intent", {}).get("case_id", "")
-    await sse_emitter.emit_step_started(case_id, 7, "Data Entry", "data_entry_node")
+
 
     # Precondition checks (stubbed for tests)
     session_id = state.get("session", {}).get("session_id", "default_session")
@@ -105,13 +118,31 @@ async def data_entry_node(state: Dict[str, Any]) -> Dict[str, Any]:
         pass
 
     # Model initialization
-    # llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-    # llm_with_tools = llm.bind_tools(TOOLS)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0, max_retries=5)
     
-    # Mock execution for Step 10 Unit Tests
+    # We must construct a graph-compatible state for create_react_agent
     messages = state.get("messages", [])
-    messages.append(SystemMessage(content=SYSTEM_PROMPT))
+    if not messages:
+        messages = [HumanMessage(content=f"Please process data entry for case {case_id}")]
+
+    agent = create_react_agent(llm, tools=TOOLS, state_modifier=SYSTEM_PROMPT)
+    from src.utils.retry import invoke_agent_with_retry
+    result = await invoke_agent_with_retry(agent, messages)
+    final_messages = result["messages"]
+
+    # Extract state updates from tool calls if necessary
+    state_update = {"messages": final_messages}
     
-    # We return a simple state update for tests to verify the node was called
+    # Check AIMessages for submit_authorization_request tool calls
+    for msg in final_messages:
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+            for call in msg.tool_calls:
+                if call["name"] == "submit_authorization_request":
+                    # We might need to store submission references if they were returned,
+                    # but for now, we just update messages. 
+                    # If we needed to extract args:
+                    # state_update["artifacts"] = {"submission_confirmation_ref": call["args"].get("some_ref")}
+                    pass
+    
     await sse_emitter.emit_step_completed(case_id, 7, "Data Entry", "data_entry_node")
-    return {"data_entry_node_executed": True, "messages": messages}
+    return state_update

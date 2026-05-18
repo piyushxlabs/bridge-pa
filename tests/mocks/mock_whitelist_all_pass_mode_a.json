@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "result": {
+    "all_conditions_met": true,
+    "whitelist_determination": "mode_a",
+    "condition_results": {
+      "A": true,
+      "B": true,
+      "C": true,
+      "D": true,
+      "E": true,
+      "F": true,
+      "G": true
+    },
+    "escalation_reason_codes": []
+  }
+}

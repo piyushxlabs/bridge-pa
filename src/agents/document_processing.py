@@ -1,7 +1,9 @@
 from typing import Dict, Any
 from src.middleware.phi_audit_decorator import phi_audit_required
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import StructuredTool
 from src.api.streaming.sse_emitter import sse_emitter
 
 from src.tools.retrieve_fax_document import execute as retrieve_fax_document_execute
@@ -51,14 +53,25 @@ Stop execution when:
 - write_extraction_to_state confirms the payload has been written to shared state.
 - write_phi_audit_log fails (halt; report to Workflow Supervisor).
 - retrieve_fax_document fails after 3 retry attempts (halt; report permanent failure).
-- Explicit stop command received from Workflow Supervisor."""
+- Explicit stop command received from Workflow Supervisor.
+
+CRITICAL EXECUTION RULES:
+1. Once you have successfully executed the required tool(s) for your current phase, you MUST immediately output your final answer and STOP. Do NOT retry or call the same tool again.
+2. If a tool returns an error or failure, gracefully output the error as your final answer and STOP. Do NOT endlessly retry failed tools."""
+
+def wrap_tool(func, name):
+    return StructuredTool.from_function(
+        coroutine=func,
+        name=name,
+        description=f"{name} tool"
+    )
 
 TOOLS = [
-    retrieve_fax_document_execute,
-    parse_document_ocr_vision_execute,
-    extract_structured_fields_execute,
-    write_phi_audit_log_execute,
-    write_extraction_to_state_execute,
+    wrap_tool(retrieve_fax_document_execute, "retrieve_fax_document"),
+    wrap_tool(parse_document_ocr_vision_execute, "parse_document_ocr_vision"),
+    wrap_tool(extract_structured_fields_execute, "extract_structured_fields"),
+    wrap_tool(write_phi_audit_log_execute, "write_phi_audit_log"),
+    wrap_tool(write_extraction_to_state_execute, "write_extraction_to_state"),
 ]
 
 @phi_audit_required(phi_fields=["all_extracted_fields"])
@@ -67,17 +80,30 @@ async def document_processing_node(state: Dict[str, Any]) -> Dict[str, Any]:
     ReAct Node implementation for Document Processing Agent.
     """
     case_id: str = state.get("user_intent", {}).get("case_id", "")
-    await sse_emitter.emit_step_started(case_id, 4, "Document Processing", "document_processing")
 
-    # Precondition checks (stubbed for tests)
+
     # Model initialization
-    # llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
-    # llm_with_tools = llm.bind_tools(TOOLS)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0, max_retries=5)
 
-    # Mock execution for Step 10 Unit Tests
+    # We must construct a graph-compatible state for create_react_agent
     messages = state.get("messages", [])
-    messages.append(SystemMessage(content=SYSTEM_PROMPT))
+    if not messages:
+        messages = [HumanMessage(content=f"Please process documents for case {case_id}")]
+
+    agent = create_react_agent(llm, tools=TOOLS, state_modifier=SYSTEM_PROMPT)
+    from src.utils.retry import invoke_agent_with_retry
+    result = await invoke_agent_with_retry(agent, messages)
+    final_messages = result["messages"]
+
+    # Extract state updates from tool calls if necessary
+    state_update = {"messages": final_messages}
+    
+    # Check AIMessages for write_extraction_to_state tool calls
+    for msg in final_messages:
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+            for call in msg.tool_calls:
+                if call["name"] == "write_extraction_to_state":
+                    state_update["extraction_payload"] = call["args"]
 
     await sse_emitter.emit_step_completed(case_id, 4, "Document Processing", "document_processing")
-    # We return a simple state update for tests to verify the node was called
-    return {"document_processing_node_executed": True, "messages": messages}
+    return state_update

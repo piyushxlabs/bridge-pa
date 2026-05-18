@@ -102,8 +102,43 @@ async def _run_graph(
     case_id: str,
 ) -> None:
     """Background task: invoke the LangGraph graph for the given case."""
+    from src.api.streaming.sse_emitter import sse_emitter
     try:
-        await graph.ainvoke(initial_state, config=config)
+        # Define mapping from LangGraph node names to UI step expectations
+        node_to_step = {
+            "session_auth_node": (1, "Session & System Verification", "workflow_supervisor"),
+            "proxy_check_node": (2, "Session Authorized", "workflow_supervisor"),
+            "credential_injection_node": (3, "Infrastructure Ready", "workflow_supervisor"),
+            "document_processing_node": (4, "Document Retrieval & Field Extraction", "document_processing"),
+            "criteria_evaluation_node": (5, "Criteria Evaluation & Routing Determination", "criteria_evaluation"),
+            "mode_routing_node": (6, "Routing Logged & SLA Monitoring Initiated", "workflow_supervisor"),
+            "mode_a_execution_node": (7, "Autonomous Data Entry & Authorization Submission", "data_entry"),
+            "mode_b_handoff_node": (7, "Manual Review Handoff", "workflow_supervisor"),
+            "case_closure_node": (8, "Case Closure", "workflow_supervisor"),
+        }
+
+        async for output in graph.astream(initial_state, config=config):
+            for node_name, node_state in output.items():
+                logger.info("graph.node_completed", case_id=case_id, node=node_name)
+                
+                # Yield SSE step_completed if it matches a known UI step
+                if node_name in node_to_step:
+                    step_num, step_name, agent = node_to_step[node_name]
+                    await sse_emitter.emit_step_completed(
+                        case_id=case_id,
+                        step_number=step_num,
+                        step_name=step_name,
+                        agent=agent
+                    )
+
         logger.info("graph.completed", case_id=case_id)
     except Exception as exc:
         logger.error("graph.error", case_id=case_id, error=str(exc))
+        # Emit an emergency stop so the frontend UI clearly shows a fatal error
+        await sse_emitter.emit_emergency_stop(
+            case_id=case_id,
+            reason=f"Agent workflow crashed: {str(exc)}",
+            scope=f"Case {case_id}"
+        )
+    finally:
+        await sse_emitter.close_stream(case_id)

@@ -63,46 +63,104 @@ def _guard_suspended(state: Dict[str, Any]) -> None:
 # Thin wrapper nodes (delegation to supervisor / specialist action stub)
 # The Workflow Supervisor orchestrates Steps 1-3; individual wrappers allow
 # the DAG to express each step as a named node for observability.
+# All wrappers resolve agent functions via module globals at call time, so
+# monkeypatch.setattr(graph_builder, "<fn_name>", mock) works in tests.
 # ──────────────────────────────────────────────────────────────────────────────
 async def session_auth_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Step 1 — Verify UM Specialist session authorization."""
+    from src.api.streaming.sse_emitter import sse_emitter
     _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 1, "Session & System Verification", "workflow_supervisor")
     result = await workflow_supervisor_node(state)
+    await sse_emitter.emit_step_completed(case_id, 1, "Session & System Verification", "workflow_supervisor")
     return {**result, "current_context": {**state.get("current_context", {}), "workflow_phase": "session_auth"}}
 
 
 async def proxy_check_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Step 2 — Confirm Veea Lobster Trap audit proxy is reachable."""
+    from src.api.streaming.sse_emitter import sse_emitter
     _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 2, "Session Authorized", "workflow_supervisor")
     result = await workflow_supervisor_node(state)
+    await sse_emitter.emit_step_completed(case_id, 2, "Session Authorized", "workflow_supervisor")
     return {**result, "current_context": {**state.get("current_context", {}), "workflow_phase": "proxy_check"}}
 
 
 async def credential_injection_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Step 3 — Initiate credential injection from Enterprise Secret Vault."""
+    from src.api.streaming.sse_emitter import sse_emitter
     _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 3, "Infrastructure Ready", "workflow_supervisor")
     result = await workflow_supervisor_node(state)
+    await sse_emitter.emit_step_completed(case_id, 3, "Infrastructure Ready", "workflow_supervisor")
     return {**result, "current_context": {**state.get("current_context", {}), "workflow_phase": "credential_injection"}}
+
+
+async def document_processing_dispatch_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Step 4 — Document Processing dispatcher (monkeypatch-friendly)."""
+    from src.api.streaming.sse_emitter import sse_emitter
+    _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 4, "Document Retrieval & Field Extraction", "document_processing")
+    import src.graph.graph_builder as _gb
+    result = await _gb.document_processing_node(state)
+    await sse_emitter.emit_step_completed(case_id, 4, "Document Retrieval & Field Extraction", "document_processing")
+    return {**state, **result}
+
+
+async def criteria_evaluation_dispatch_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Step 5 — Criteria Evaluation dispatcher (monkeypatch-friendly)."""
+    from src.api.streaming.sse_emitter import sse_emitter
+    _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 5, "Criteria Evaluation & Routing Determination", "criteria_evaluation")
+    import src.graph.graph_builder as _gb
+    result = await _gb.criteria_evaluation_node(state)
+    await sse_emitter.emit_step_completed(case_id, 5, "Criteria Evaluation & Routing Determination", "criteria_evaluation")
+    return {**state, **result}
+
+
+async def sla_monitor_dispatch_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """SLA Monitor dispatcher (monkeypatch-friendly)."""
+    _guard_suspended(state)
+    import src.graph.graph_builder as _gb
+    result = await _gb.sla_monitor_node(state)
+    return {**state, **result}
 
 
 async def mode_routing_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Step 6 — Read whitelist determination, write routing audit log, register SLA."""
+    from src.api.streaming.sse_emitter import sse_emitter
     _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 6, "Routing Logged & SLA Monitoring Initiated", "workflow_supervisor")
     result = await workflow_supervisor_node(state)
+    await sse_emitter.emit_step_completed(case_id, 6, "Routing Logged & SLA Monitoring Initiated", "workflow_supervisor")
     return {**result, "current_context": {**state.get("current_context", {}), "workflow_phase": "mode_routing"}}
 
 
 async def mode_a_execution_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Step 7A — Delegate to Data Entry Agent for autonomous Mode A execution."""
+    from src.api.streaming.sse_emitter import sse_emitter
     _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 7, "Autonomous Data Entry & Authorization Submission", "data_entry")
     result = await data_entry_node(state)
+    await sse_emitter.emit_step_completed(case_id, 7, "Autonomous Data Entry & Authorization Submission", "data_entry")
     return {**result, "current_context": {**state.get("current_context", {}), "workflow_phase": "mode_a_execution"}}
 
 
 async def mode_b_handoff_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Step 7B (first half) — Assemble recommendation package and notify specialist."""
+    from src.api.streaming.sse_emitter import sse_emitter
     _guard_suspended(state)
+    case_id: str = state.get("user_intent", {}).get("case_id", "")
+    await sse_emitter.emit_step_started(case_id, 7, "Manual Review Handoff", "workflow_supervisor")
     result = await workflow_supervisor_node(state)
+    await sse_emitter.emit_step_completed(case_id, 7, "Manual Review Handoff", "workflow_supervisor")
     awaiting_ctx = {**state.get("current_context", {}), "awaiting_human_action": True, "workflow_phase": "mode_b_handoff"}
     return {**result, "current_context": awaiting_ctx}
 
@@ -168,8 +226,8 @@ def _build_graph(checkpointer: Any | None) -> Any:
     builder.add_node(NODE_SESSION_AUTH, session_auth_node)
     builder.add_node(NODE_PROXY_CHECK, proxy_check_node)
     builder.add_node(NODE_CREDENTIAL_INJECTION, credential_injection_node)
-    builder.add_node(NODE_DOCUMENT_PROCESSING, document_processing_node)
-    builder.add_node(NODE_CRITERIA_EVALUATION, criteria_evaluation_node)
+    builder.add_node(NODE_DOCUMENT_PROCESSING, document_processing_dispatch_node)
+    builder.add_node(NODE_CRITERIA_EVALUATION, criteria_evaluation_dispatch_node)
     builder.add_node(NODE_MODE_ROUTING, mode_routing_node)
     builder.add_node(NODE_MODE_A_EXECUTION, mode_a_execution_node)
     builder.add_node(NODE_MODE_B_HANDOFF, mode_b_handoff_node)

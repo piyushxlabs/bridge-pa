@@ -34,3 +34,32 @@ def with_retry(max_attempts=3, backoff_seconds=[2, 4, 8]):
                     raise
         return wrapper
     return decorator
+
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception, before_sleep_log
+import logging
+from google.api_core.exceptions import ResourceExhausted
+
+logger = logging.getLogger("agent_retry")
+
+def is_resource_exhausted(exception: BaseException) -> bool:
+    """Return True if the exception is ResourceExhausted or contains a 429 status code."""
+    if isinstance(exception, ResourceExhausted):
+        return True
+    if "429" in str(exception) or "ResourceExhausted" in str(exception) or "quota" in str(exception).lower():
+        return True
+    return False
+
+@retry(
+    retry=retry_if_exception(is_resource_exhausted),
+    wait=wait_exponential(multiplier=2, min=20, max=60), # Wait at least 20s, up to 60s
+    stop=stop_after_attempt(5),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True
+)
+async def invoke_agent_with_retry(agent, messages):
+    """
+    Robust wrapper for ReAct agent invocations.
+    Catches 429 ResourceExhausted errors and forcefully waits 20+ seconds 
+    before retrying to ensure the 15 RPM limits are respected without crashing.
+    """
+    return await agent.ainvoke({"messages": messages})

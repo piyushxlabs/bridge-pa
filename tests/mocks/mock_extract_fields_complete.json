@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "result": {
+    "extracted_fields": {
+      "patient_name": "John Doe",
+      "dob": "1980-01-01",
+      "member_id": "MEM123456789",
+      "diagnosis_code": "E11.9"
+    },
+    "missing_required_fields": [],
+    "structural_complexity_flags": [],
+    "illegibility_flags": [],
+    "extraction_completeness": true
+  }
+}

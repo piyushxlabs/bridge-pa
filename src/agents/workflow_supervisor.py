@@ -1,6 +1,9 @@
 from typing import Dict, Any
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import StructuredTool
+import json
 
 from src.tools.verify_session_authorization import execute as verify_session_authorization_execute
 from src.tools.check_audit_proxy_reachability import execute as check_audit_proxy_reachability_execute
@@ -79,19 +82,30 @@ Stop execution when:
 - Case is successfully closed (close_case confirms closure and audit log completeness).
 - Emergency stop is triggered (all processing halts; await human restart authorization).
 - Out-of-scope case type detected (log and terminate; no further action).
-- Explicit stop command received from human operator or UM Manager."""
+- Explicit stop command received from human operator or UM Manager.
+
+CRITICAL EXECUTION RULES:
+1. Once you have successfully executed the required tool(s) for your current phase, you MUST immediately output your final answer and STOP. Do NOT retry or call the same tool again.
+2. If a tool returns an error or failure, gracefully output the error as your final answer and STOP. Do NOT endlessly retry failed tools."""
+
+def wrap_tool(func, name):
+    return StructuredTool.from_function(
+        coroutine=func,
+        name=name,
+        description=f"{name} tool"
+    )
 
 TOOLS = [
-    verify_session_authorization_execute,
-    check_audit_proxy_reachability_execute,
-    request_vault_credential_injection_execute,
-    write_routing_audit_log_execute,
-    assemble_recommendation_package_execute,
-    notify_human_handoff_execute,
-    notify_um_manager_execute,
-    trigger_emergency_stop_execute,
-    read_specialist_action_execute,
-    close_case_execute,
+    wrap_tool(verify_session_authorization_execute, "verify_session_authorization"),
+    wrap_tool(check_audit_proxy_reachability_execute, "check_audit_proxy_reachability"),
+    wrap_tool(request_vault_credential_injection_execute, "request_vault_credential_injection"),
+    wrap_tool(write_routing_audit_log_execute, "write_routing_audit_log"),
+    wrap_tool(assemble_recommendation_package_execute, "assemble_recommendation_package"),
+    wrap_tool(notify_human_handoff_execute, "notify_human_handoff"),
+    wrap_tool(notify_um_manager_execute, "notify_um_manager"),
+    wrap_tool(trigger_emergency_stop_execute, "trigger_emergency_stop"),
+    wrap_tool(read_specialist_action_execute, "read_specialist_action"),
+    wrap_tool(close_case_execute, "close_case"),
 ]
 
 from src.api.streaming.sse_emitter import sse_emitter
@@ -101,18 +115,37 @@ async def workflow_supervisor_node(state: Dict[str, Any]) -> Dict[str, Any]:
     ReAct Node implementation for Workflow Supervisor Agent.
     """
     case_id: str = state.get("user_intent", {}).get("case_id", "")
-    await sse_emitter.emit_step_started(case_id, 1, "Workflow Supervisor", "workflow_supervisor")
 
-    # Precondition checks (stubbed for tests)
     # Model initialization
-    # llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-    # llm_with_tools = llm.bind_tools(TOOLS)
-
-    # Mock execution for Step 10 Unit Tests
+    llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0, max_retries=5)
+    
+    # We must construct a graph-compatible state for create_react_agent
     messages = state.get("messages", [])
-    messages.append(SystemMessage(content=SYSTEM_PROMPT))
+    if not messages:
+        # Provide the initial intent as a human message if empty
+        messages = [HumanMessage(content=f"Please process case {case_id}")]
+
+    agent = create_react_agent(llm, tools=TOOLS, state_modifier=SYSTEM_PROMPT)
+    from src.utils.retry import invoke_agent_with_retry
+    result = await invoke_agent_with_retry(agent, messages)
+    final_messages = result["messages"]
+
+    # Extract state updates from tool calls if necessary
+    state_update = {"messages": final_messages}
+    
+    # Check for specific tool executions to update shared state
+    for msg in final_messages:
+        if isinstance(msg, ToolMessage):
+            try:
+                data = json.loads(msg.content)
+                if data.get("success"):
+                    if msg.name == "verify_session_authorization":
+                        state_update["session"] = {"specialist_verified": True}
+                    elif msg.name == "assemble_recommendation_package":
+                        state_update["artifacts"] = {"full_recommendation_package": data.get("result", {})}
+            except Exception:
+                pass
 
     await sse_emitter.emit_step_completed(case_id, 1, "Workflow Supervisor", "workflow_supervisor")
-    # We return a simple state update for tests to verify the node was called
-    return {"workflow_supervisor_node_executed": True, "messages": messages}
+    return state_update
 

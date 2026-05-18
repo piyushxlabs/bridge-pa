@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # 1. Main FastAPI Backend
+  bridge-pa-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: bridge-pa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # Will pull from local .env automatically if available, but define critical overrides here:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - FRONTEND_ORIGIN=http://localhost:3000
+      # Route external tools to the mock proxy container via internal Docker network:
+      - VEEA_LOBSTER_TRAP_API_ENDPOINT=http://mock-proxy:8080/write_phi_audit_log
+      - SECRET_VAULT_ENDPOINT=http://mock-proxy:8080/request_vault_credential_injection
+      - PAYER_CONFIG_TABLE_ENDPOINT=http://mock-proxy:8080/query_payer_config_table
+      - UM_SPECIALIST_REGISTRY_ENDPOINT=http://mock-proxy:8080/verify_session_authorization
+      - HIGH_PRIORITY_QUEUE_ENDPOINT=http://mock-proxy:8080/reroute_to_high_priority_queue
+      - UM_MANAGER_NOTIFICATION_ENDPOINT=http://mock-proxy:8080/notify_um_manager
+      - INTAKE_SOURCE_BASE_URL=http://mock-proxy:8080
+    env_file:
+      - .env
+    depends_on:
+      - mock-proxy
+    restart: unless-stopped
+    networks:
+      - bridge-pa-network
+
+  # 2. VeeaHub Edge Logging Proxy Mock
+  mock-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    container_name: veea-mock-proxy
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=local # Bypasses production safety guard
+    restart: unless-stopped
+    networks:
+      - bridge-pa-network
+
+  # 3. React Frontend (Vite -> Nginx)
+  bridge-pa-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: bridge-pa-frontend
+    ports:
+      - "3000:80" # Map host 3000 to Nginx container 80
+    restart: unless-stopped
+    networks:
+      - bridge-pa-network
+
+networks:
+  bridge-pa-network:
+    driver: bridge

@@ -1,7 +1,9 @@
 from typing import Dict, Any
 from src.middleware.phi_audit_decorator import phi_audit_required
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langgraph.prebuilt import create_react_agent
+from langchain_core.tools import StructuredTool
 
 from src.tools.query_payer_config_table import execute as query_payer_config_table_execute
 from src.tools.apply_interqual_matching import execute as apply_interqual_matching_execute
@@ -64,14 +66,25 @@ Stop execution when:
 - write_phi_audit_log fails (halt; report to Workflow Supervisor).
 - query_payer_config_table fails after 3 retry attempts (payer_config_reachable = false; Condition F = failed; continue to evaluation).
 - apply_interqual_matching fails after 3 retry attempts (permanent failure; report to Workflow Supervisor).
-- Explicit stop command received from Workflow Supervisor."""
+- Explicit stop command received from Workflow Supervisor.
+
+CRITICAL EXECUTION RULES:
+1. Once you have successfully executed the required tool(s) for your current phase, you MUST immediately output your final answer and STOP. Do NOT retry or call the same tool again.
+2. If a tool returns an error or failure, gracefully output the error as your final answer and STOP. Do NOT endlessly retry failed tools."""
+
+def wrap_tool(func, name):
+    return StructuredTool.from_function(
+        coroutine=func,
+        name=name,
+        description=f"{name} tool"
+    )
 
 TOOLS = [
-    query_payer_config_table_execute,
-    apply_interqual_matching_execute,
-    evaluate_whitelist_conditions_execute,
-    write_phi_audit_log_execute,
-    write_evaluation_to_state_execute,
+    wrap_tool(query_payer_config_table_execute, "query_payer_config_table"),
+    wrap_tool(apply_interqual_matching_execute, "apply_interqual_matching"),
+    wrap_tool(evaluate_whitelist_conditions_execute, "evaluate_whitelist_conditions"),
+    wrap_tool(write_phi_audit_log_execute, "write_phi_audit_log"),
+    wrap_tool(write_evaluation_to_state_execute, "write_evaluation_to_state"),
 ]
 
 @phi_audit_required(phi_fields=["all_extracted_fields"])
@@ -80,17 +93,30 @@ async def criteria_evaluation_node(state: Dict[str, Any]) -> Dict[str, Any]:
     ReAct Node implementation for Criteria Evaluation Agent.
     """
     case_id: str = state.get("user_intent", {}).get("case_id", "")
-    await sse_emitter.emit_step_started(case_id, 5, "Criteria Evaluation", "criteria_evaluation_node")
 
-    # Precondition checks (stubbed for tests)
+
     # Model initialization
-    # llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
-    # llm_with_tools = llm.bind_tools(TOOLS)
+    llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0, max_retries=5)
     
-    # Mock execution for Step 10 Unit Tests
+    # We must construct a graph-compatible state for create_react_agent
     messages = state.get("messages", [])
-    messages.append(SystemMessage(content=SYSTEM_PROMPT))
+    if not messages:
+        messages = [HumanMessage(content=f"Please evaluate criteria for case {case_id}")]
+
+    agent = create_react_agent(llm, tools=TOOLS, state_modifier=SYSTEM_PROMPT)
+    from src.utils.retry import invoke_agent_with_retry
+    result = await invoke_agent_with_retry(agent, messages)
+    final_messages = result["messages"]
+
+    # Extract state updates from tool calls if necessary
+    state_update = {"messages": final_messages}
     
-    # We return a simple state update for tests to verify the node was called
+    # Check AIMessages for write_evaluation_to_state tool calls
+    for msg in final_messages:
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+            for call in msg.tool_calls:
+                if call["name"] == "write_evaluation_to_state":
+                    state_update["criteria_evaluation"] = call["args"]
+    
     await sse_emitter.emit_step_completed(case_id, 5, "Criteria Evaluation", "criteria_evaluation_node")
-    return {"criteria_evaluation_node_executed": True, "messages": messages}
+    return state_update

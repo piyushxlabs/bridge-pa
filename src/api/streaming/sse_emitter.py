@@ -17,6 +17,7 @@ Design:
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -53,13 +54,17 @@ class SSEEmitter:
         if not case_id:
             return
 
+        # Send as a single stringified JSON under the 'data' field so sse-starlette
+        # uses the default 'message' event, which React's EventSource.onmessage catches.
         payload = {
-            "event": event_type,
-            "data": {
-                "case_id": case_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                **data,
-            },
+            "data": json.dumps({
+                "event": event_type,
+                "data": {
+                    "case_id": case_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    **data,
+                }
+            })
         }
 
         try:
@@ -79,7 +84,7 @@ class SSEEmitter:
         await self.emit(case_id, "step_status", {
             "step_number": step_number,
             "step_name": step_name,
-            "status": "started",
+            "status": "in_progress",
             "agent": agent,
         })
 
