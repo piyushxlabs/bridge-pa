@@ -18,3 +18,4 @@ structlog
 sse-starlette
 pytest
 pytest-asyncio
+google-api-core
