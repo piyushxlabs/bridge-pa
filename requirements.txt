@@ -3,6 +3,8 @@
 # Python 3.12 required.
 
 google-generativeai==0.8.3
+langchain-google-genai==2.0.10
+langchain-core==0.3.52
 langgraph==0.3.5
 langgraph-checkpoint-postgres==3.0.5
 asyncpg==0.30.0
