@@ -7,9 +7,9 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/session': 'http://localhost:8000',
-      '/workflow': 'http://localhost:8000',
-      '/admin': 'http://localhost:8000',
+      '/session': 'https://bridge-pa-production.up.railway.app',
+      '/workflow': 'https://bridge-pa-production.up.railway.app',
+      '/admin': 'https://bridge-pa-production.up.railway.app',
     },
   },
 })

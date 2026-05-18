@@ -13,7 +13,7 @@ interface ActiveSession {
   streamUrl: string;
 }
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = 'https://bridge-pa-production.up.railway.app';
 
 function App() {
   const [session, setSession] = useState<ActiveSession | null>(null);

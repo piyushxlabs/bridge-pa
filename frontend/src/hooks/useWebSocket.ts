@@ -18,7 +18,7 @@ interface UseWebSocketReturn {
 
 export function useWebSocket(
   caseId: string | null,
-  baseUrl = 'ws://localhost:8000'
+  baseUrl = 'wss://bridge-pa-production.up.railway.app'
 ): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);

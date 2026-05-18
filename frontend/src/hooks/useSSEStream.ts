@@ -19,7 +19,7 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 
 export function useSSEStream({
   caseId,
-  baseUrl = 'http://localhost:8000',
+  baseUrl = 'https://bridge-pa-production.up.railway.app',
   onEvent,
   onConnectionLost,
   onReconnected,
