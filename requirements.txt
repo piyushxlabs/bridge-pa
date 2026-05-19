@@ -1,6 +1,7 @@
 # Bridge-PA — Strictly Locked Production Dependencies
 # Python 3.12/3.13 Compatible Architecture
 
+
 langchain-google-genai==3.1.0
 langchain-core==0.3.53
 langgraph==0.3.5
@@ -10,10 +11,10 @@ psycopg-binary==3.3.4
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-dotenv==1.0.1
-httpx==0.28.1
+httpx>=0.28.1
 pydantic==2.9.0
 structlog==24.4.0
 sse-starlette==2.1.3
 pytest==8.3.0
 pytest-asyncio==0.24.0
-google-api-core==2.30.3
+google-api-core>=2.30.3
