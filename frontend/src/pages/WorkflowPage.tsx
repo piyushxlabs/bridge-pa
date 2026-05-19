@@ -147,7 +147,8 @@ export const WorkflowPage: React.FC<WorkflowPageProps> = ({
     const token = prompt('Enter UM Manager Token to confirm Emergency Stop:');
     if (!token) return;
     try {
-      const res = await fetch('https://bridge-pa-production.up.railway.app/admin/emergency-stop', {
+      const apiBase = (import.meta.env.VITE_API_URL as string) || 'http://65.20.89.119:8000';
+      const res = await fetch(`${apiBase}/admin/emergency-stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Manager-Token': token },
         body: JSON.stringify({ case_id: caseId, scope: 'case', reason: 'Specialist-triggered emergency stop' }),

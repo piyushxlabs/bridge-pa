@@ -13,7 +13,7 @@ interface ActiveSession {
   streamUrl: string;
 }
 
-const API_BASE = 'https://bridge-pa-production.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://65.20.89.119:8000';
 
 function App() {
   const [session, setSession] = useState<ActiveSession | null>(null);

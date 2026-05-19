@@ -19,7 +19,7 @@ const MAX_RECONNECT_ATTEMPTS = 10;
 
 export function useSSEStream({
   caseId,
-  baseUrl = 'https://bridge-pa-production.up.railway.app',
+  baseUrl = (import.meta.env.VITE_API_URL as string) || 'http://65.20.89.119:8000',
   onEvent,
   onConnectionLost,
   onReconnected,

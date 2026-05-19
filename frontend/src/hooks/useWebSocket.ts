@@ -18,7 +18,7 @@ interface UseWebSocketReturn {
 
 export function useWebSocket(
   caseId: string | null,
-  baseUrl = 'wss://bridge-pa-production.up.railway.app'
+  baseUrl = (import.meta.env.VITE_WS_URL as string) || 'ws://65.20.89.119:8000'
 ): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
